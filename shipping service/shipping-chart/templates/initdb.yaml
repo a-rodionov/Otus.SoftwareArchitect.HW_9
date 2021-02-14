@@ -1,0 +1,66 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "{{ .Release.Name }}"
+  labels:
+    helm.sh/chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-delete-policy": hook-succeeded
+spec:
+  template:
+    metadata:
+      name: "{{ .Release.Name }}"
+      labels:
+        helm.sh/chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: post-install-job
+          image: {{ printf "%s/%s:%s" .Values.postgresql.image.registry .Values.postgresql.image.repository .Values.postgresql.image.tag }}
+          env:
+            - name: DATABASE_URI
+              valueFrom:
+                secretKeyRef:
+                  name: otus-sw-arch-shipping-init-job-secret
+                  key: DATABASE_URI
+          command:
+            - sh
+            - "-c"
+            - |
+              psql $DATABASE_URI <<'EOF'
+                DROP TABLE IF EXISTS orders;
+                CREATE TABLE orders(
+                  id bigint NOT NULL,
+                  status bigint NOT NULL,
+                  delivery_address varchar NOT NULL,
+                  delivery_time varchar NOT NULL,
+                  CONSTRAINT uq_orders_id UNIQUE ( id )
+                )
+                WITH (
+                  OIDS=FALSE
+                );
+                DROP TABLE IF EXISTS couriers;
+                CREATE TABLE couriers(
+                  id serial NOT NULL,
+                  CONSTRAINT uq_couriers_id UNIQUE ( id )
+                )
+                WITH (
+                  OIDS=FALSE
+                );
+                DROP TABLE IF EXISTS reservations;
+                CREATE TABLE reservations(
+                  order_id bigint NOT NULL,
+                  courier_id bigint NOT NULL,
+                  CONSTRAINT fk_orders_order_id FOREIGN KEY (order_id)
+                    REFERENCES orders (id)
+                    ON UPDATE NO ACTION ON DELETE CASCADE,
+                  CONSTRAINT fk_couriers_courier_id FOREIGN KEY (courier_id)
+                    REFERENCES couriers (id)
+                    ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+                WITH (
+                  OIDS=FALSE
+                );
+              EOF
+  backoffLimit: 5

@@ -1,0 +1,7 @@
+Flask==1.1.2
+Flask-SQLAlchemy
+Flask-API
+psycopg2
+requests
+flask-expects-json
+pika

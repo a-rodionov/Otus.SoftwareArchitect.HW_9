@@ -1,0 +1,58 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "{{ .Release.Name }}"
+  labels:
+    helm.sh/chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-delete-policy": hook-succeeded
+spec:
+  template:
+    metadata:
+      name: "{{ .Release.Name }}"
+      labels:
+        helm.sh/chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: post-install-job
+          image: {{ printf "%s/%s:%s" .Values.postgresql.image.registry .Values.postgresql.image.repository .Values.postgresql.image.tag }}
+          env:
+            - name: DATABASE_URI
+              valueFrom:
+                secretKeyRef:
+                  name: otus-sw-arch-order-init-job-secret
+                  key: DATABASE_URI
+          command:
+            - sh
+            - "-c"
+            - |
+              psql $DATABASE_URI <<'EOF'
+                DROP TABLE IF EXISTS orders;
+                CREATE TABLE orders(
+                  id serial NOT NULL,
+                  status bigint NOT NULL,
+                  user_account_id bigint NOT NULL,
+                  total_price bigint NOT NULL,
+                  delivery_address varchar NOT NULL,
+                  delivery_time varchar NOT NULL,
+                  CONSTRAINT uq_orders_id UNIQUE ( id )
+                )
+                WITH (
+                  OIDS=FALSE
+                );
+                DROP TABLE IF EXISTS order_goods;
+                CREATE TABLE order_goods(
+                  order_id bigint NOT NULL,
+                  goods_id bigint NOT NULL,
+                  goods_quantity bigint NOT NULL,
+                  CONSTRAINT fk_order_goods_order_id FOREIGN KEY (order_id)
+                    REFERENCES orders (id)
+                    ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+                WITH (
+                  OIDS=FALSE
+                );
+              EOF
+  backoffLimit: 5

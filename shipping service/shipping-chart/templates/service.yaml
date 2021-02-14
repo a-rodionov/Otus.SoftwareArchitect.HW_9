@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "shipping-chart.fullname" . }}
+  labels:
+    {{- include "shipping-chart.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.webServer.service.type }}
+  ports:
+    - port: {{ .Values.webServer.service.port }}
+      targetPort: web
+      protocol: TCP
+      name: web
+  selector:
+    {{- include "shipping-chart.selectorLabels" . | nindent 4 }}

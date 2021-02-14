@@ -1,0 +1,137 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "shipping-chart.fullname" . }}-web-server
+  labels:
+    {{- include "shipping-chart.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.webServer.autoscaling.enabled }}
+  replicas: {{ .Values.webServer.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "shipping-chart.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.webServer.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+        checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
+      {{- end }}
+      labels:
+        {{- include "shipping-chart.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.webServer.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.webServer.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.webServer.securityContext | nindent 12 }}
+          image: "{{ .Values.webServer.image.repository }}:{{ .Values.webServer.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.webServer.image.pullPolicy }}
+          env:
+            - name: DATABASE_URI
+              valueFrom:
+                secretKeyRef:
+                  name: otus-sw-arch-shipping-web-server-secret
+                  key: DATABASE_URI
+            - name: APP_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: otus-sw-arch-shipping-web-server-config
+                  key: APP_NAME
+          ports:
+            - name: web
+              containerPort: 8000
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: web
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: web
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.webServer.resources | nindent 12 }}
+      {{- with .Values.webServer.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.webServer.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.webServer.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "shipping-chart.fullname" . }}-message-processor
+  labels:
+    {{- include "shipping-chart.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.messageProcessor.autoscaling.enabled }}
+  replicas: {{ .Values.messageProcessor.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "shipping-chart.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.messageProcessor.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+        checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
+      {{- end }}
+      labels:
+        {{- include "shipping-chart.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.messageProcessor.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.messageProcessor.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.messageProcessor.securityContext | nindent 12 }}
+          image: "{{ .Values.messageProcessor.image.repository }}:{{ .Values.messageProcessor.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.messageProcessor.image.pullPolicy }}
+          env:
+            - name: DATABASE_URI
+              valueFrom:
+                secretKeyRef:
+                  name: otus-sw-arch-shipping-message-processor-secret
+                  key: DATABASE_URI
+            - name: MESSAGE_BROKER_URI
+              valueFrom:
+                secretKeyRef:
+                  name: otus-sw-arch-shipping-message-processor-secret
+                  key: MESSAGE_BROKER_URI
+          resources:
+            {{- toYaml .Values.messageProcessor.resources | nindent 12 }}
+      {{- with .Values.messageProcessor.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.messageProcessor.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.messageProcessor.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
